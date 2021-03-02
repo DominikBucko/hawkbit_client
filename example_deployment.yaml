@@ -1,0 +1,10 @@
+platform: docker
+super_user: false
+user: default
+package:
+  - image: myimage.tar.gz
+    before_script: before.sh
+    after_script: after.sh
+target:
+  - service: test_service
+    dir: /home/buco/Documents/FIIT/BP
