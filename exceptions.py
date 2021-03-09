@@ -20,3 +20,8 @@ class FeedbackPushError(BaseUpdaterException):
     pass
 
 
+class UpdateExecutorException(Exception):
+    pass
+
+
+

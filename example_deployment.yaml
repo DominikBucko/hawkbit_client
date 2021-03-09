@@ -1,10 +1,12 @@
 platform: docker
 super_user: false
-user: default
+user: nobody
 package:
-  - image: myimage.tar.gz
+    image:
+        file: myimage.tar.gz
+        name: openpolicyagent/opa
     before_script: before.sh
     after_script: after.sh
 target:
-  - service: test_service
+    service: test_service
     dir: /home/buco/Documents/FIIT/BP
