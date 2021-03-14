@@ -1,0 +1,12 @@
+[Unit]
+Description=Service for running hawkbit-client.
+Requires=network.target
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/hawkbit-service -c /etc/hawkbit-client/config.yaml -d /etc/hawkbit-client/deviceConfig.json
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

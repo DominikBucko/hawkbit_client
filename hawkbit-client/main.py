@@ -1,9 +1,9 @@
 import json
 import yaml
-from config import config
+from .config import config
 import logging
 import os
-from polling_client import poll
+from .polling_client import poll
 import argparse
 
 
@@ -41,7 +41,8 @@ def main():
         logging.error("Invalid path to device configuration JSON file. Exitting.")
         exit(1)
 
-    poll()
+    while True:
+        poll()
 
 
 if __name__ == '__main__':

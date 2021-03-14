@@ -1,7 +1,7 @@
-from config import config
-from exceptions import *
-from misc import parse_time_to_seconds
-from update_agent import UpdateAgent, get_deployment_base_ref
+from .config import config
+from .exceptions import *
+from .misc import parse_time_to_seconds
+from .update_agent import UpdateAgent, get_deployment_base_ref
 import time
 import logging
 import requests
@@ -34,7 +34,12 @@ def poll():
     if resp.status_code in range(200, 299):
         data = resp.json()
     else:
-        return
+        logging.error(
+            f"Error while polling update server. "
+            f"Status code {resp.status_code} on request {resp.request}. "
+            f"Response: {resp.content}")
+        time.sleep(sleep)
+
 
     if data.get("_links"):
         if data["_links"].get("configData"):

@@ -2,7 +2,7 @@ import os
 import sh
 import pwd
 import subprocess
-from hawkbit.exceptions import *
+from ..exceptions import *
 
 
 def demote(user_uid, user_gid, user_name):

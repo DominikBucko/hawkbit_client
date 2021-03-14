@@ -5,9 +5,8 @@ import shutil
 import os
 import yaml
 import sh
-from exceptions import *
-from config import config
-
+from .exceptions import *
+from .config import config
 
 
 def get_deployment_base_ref(deploymentBaseRefUrl):
