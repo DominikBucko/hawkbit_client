@@ -1,6 +1,5 @@
 from config import config
 from exceptions import *
-from datetime import datetime
 from misc import parse_time_to_seconds
 from update_agent import UpdateAgent, get_deployment_base_ref
 import time

@@ -2,7 +2,7 @@ import os
 import sh
 import pwd
 import subprocess
-from exceptions import *
+from hawkbit.exceptions import *
 
 
 def demote(user_uid, user_gid, user_name):
@@ -56,12 +56,21 @@ class Executor:
         cmd = f"systemctl stop {self.deployment['target']['service']}.service"
         self.sudo_execute(cmd)
 
+
     def start_service(self):
         cmd = f"systemctl start {self.deployment['target']['service']}.service"
         self.sudo_execute(cmd)
 
+    def restart_service(self):
+        cmd = f"systemctl restart {self.deployment['target']['service']}.service"
+        self.sudo_execute(cmd)
+
     def persist_old_image(self):
         cmd = f"docker image save -o '{self.deployment['package']['image']['name']}-old'"
+        self.sudo_execute(cmd)
+
+    def reload_old_image(self):
+        cmd = f"docker image load < {self.deployment['package']['image']['name']}-old"
         self.sudo_execute(cmd)
 
     def delete_image(self):
@@ -78,8 +87,19 @@ class Executor:
             self.before()
 
         self.stop_service()
-        self.persist_old_image()
-        self.delete_image()
+
+        try:
+            self.persist_old_image()
+        except UpdateExecutorException as e:
+            self.restart_service()
+            raise e
+
+        try:
+            self.delete_image()
+        except UpdateExecutorException as e:
+            self.reload_old_image()
+            self.restart_service()
+            raise e
+
         self.load_image()
         self.start_service()
-
