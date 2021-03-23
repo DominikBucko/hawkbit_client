@@ -47,6 +47,7 @@ def poll():
         elif data["_links"].get("deploymentBase"):
             agent = UpdateAgent(get_deployment_base_ref(data["_links"]["deploymentBase"]["href"]))
             agent.download_files()
+            agent.apply_updates()
 
 
     else:

@@ -9,7 +9,7 @@ required = [
 ]
 
 setup(
-  name='hawkbit-client',
+  name='hawkbit_client',
   author='Dominik Bucko',
   version='0.1.0',
   description='Update client working with Hawkbit DDI API.',
@@ -17,7 +17,7 @@ setup(
   packages=find_packages(),
   entry_points={
     'console_scripts': [
-      'hawkbit-client = hawkbit.main:main'
+      'hawkbit-client = hawkbit_client.main:main'
     ]
   },
 )

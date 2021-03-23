@@ -2,6 +2,7 @@ import os
 import sh
 import pwd
 import subprocess
+import logging
 from ..exceptions import *
 
 
@@ -11,7 +12,8 @@ def demote(user_uid, user_gid, user_name):
 
 
 class Executor:
-    def __init__(self, deployment, dir):
+    def __init__(self, update_agent, deployment, dir):
+        self.update_agent = update_agent
         self.deployment = deployment
         self.env = os.environ.copy()
         self.dir = dir
@@ -57,12 +59,16 @@ class Executor:
         self.sudo_execute(cmd)
 
     def docker_run_cmd(self):
-        cmd = f"docker run {self.deployment['package']['image']['name']} " \
-              f"{' '.join(self.deployment['package']['image']['run_flags'])}"
+        cmd = f"docker run -d {' '.join(self.deployment['package']['image']['run_flags'])} " \
+              f"{self.deployment['package']['image']['name']}"
         self.sudo_execute(cmd)
 
     def docker_stop_containers_of_image(self):
         cmd = f"docker stop $(docker ps -q --filter ancestor={self.deployment['package']['image']['name']} )"
+        self.sudo_execute(cmd)
+
+    def docker_remove_containers_of_image(self):
+        cmd = f"docker rm $(docker ps -q --filter ancestor={self.deployment['package']['image']['name']} )"
         self.sudo_execute(cmd)
 
     def start_service(self):
@@ -82,21 +88,24 @@ class Executor:
         self.sudo_execute(cmd)
 
     def delete_image(self):
-        cmd = f"docker image delete {self.deployment['package']['image']['name']}"
+        cmd = f"docker image rm {self.deployment['package']['image']['name']}"
         self.sudo_execute(cmd)
 
     def load_image(self):
-        cmd = f"docker image load < {self.deployment['package']['image']['name']}"
+        cmd = f"docker image load < {self.deployment['package']['image']['file']}"
         self.sudo_execute(cmd)
 
     def execute(self):
         sh.cp(f"{self.dir}/{self.deployment['package']['image']['file']}", f"{self.deployment['package']['dir']}/")
         if self.deployment['package'].get('before_script'):
             self.before()
-        if self.deployment["daemon"] == "systemd":
-            self.stop_service()
-        elif self.deployment["daemon"] == "docker":
-            self.docker_stop_containers_of_image()
+        try:
+            if self.deployment["daemon"] == "systemd":
+                self.stop_service()
+            elif self.deployment["daemon"] == "docker":
+                self.docker_stop_containers_of_image()
+        except UpdateExecutorException:
+            logging.error("No instances running currently.")
 
         if self.deployment['package']['image'].get("persist_old"):
             try:
@@ -106,17 +115,19 @@ class Executor:
                     self.restart_service()
                 elif self.deployment["daemon"] == "docker":
                     self.docker_run_cmd()
+                logging.error("Couldnt persist old image.")
                 raise e
 
         try:
             self.delete_image()
         except UpdateExecutorException as e:
-            self.reload_old_image()
-            if self.deployment["daemon"] == "systemd":
-                self.restart_service()
-            elif self.deployment["daemon"] == "docker":
-                self.docker_run_cmd()
-            raise e
+            # self.reload_old_image()
+            # if self.deployment["daemon"] == "systemd":
+            #     self.restart_service()
+            # elif self.deployment["daemon"] == "docker":
+            #     self.docker_run_cmd()
+            logging.error("Couldn't delete old image")
+            # raise e
 
         self.load_image()
 
@@ -127,3 +138,11 @@ class Executor:
 
         if self.deployment['package'].get('after_script'):
             self.after()
+
+        self.update_agent.send_feedback(execution="closed",
+                                        finished="success",
+                                        progress={"cnt": 1, "of": 1},
+                                        details=["Finished updating."]
+                                        )
+
+        logging.info("Updating completed successfully.")

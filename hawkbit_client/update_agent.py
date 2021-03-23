@@ -5,6 +5,7 @@ import shutil
 import os
 import yaml
 import sh
+from .update_executors.docker import Executor
 from .exceptions import *
 from .config import config
 
@@ -31,7 +32,7 @@ class UpdateAgent:
         self.updateRule = self.deployment.get("update")
         self.downloadRule = self.deployment.get("download")
         self.chunks = self.deployment.get("chunks")
-        self.config = None
+        self.deployment_config = None
 
     def download_files(self):
         for chunk in self.chunks:
@@ -101,11 +102,16 @@ class UpdateAgent:
         for chunk in self.chunks:
             dir = f"{config.targetDir}/{chunk['part']}/v{chunk['version']}/{chunk['name']}"
             for artifact in chunk["artifacts"]:
-                sh.tar("-xvzf", f"{dir}/{artifact['filename']}")
+                sh.tar("-xvzf" f"{dir}/{artifact['filename']}", "-C", f"{dir}/")
+                # sh.tar("-xvzf", dir+"/"+artifact['filename']+" -C", dir+"/")
+
                 dirname = artifact['filename'].replace(".tar.gz", "")
                 dir += f"/{dirname}"
                 try:
-                    self.config = yaml.safe_load(f"{dir}/example_deployment.yaml")
+                    with open(f"{dir}/deployment.yaml") as deployment:
+                        self.deployment_config = yaml.safe_load(deployment)
+                    executor = Executor(self, self.deployment_config, dir)
+                    executor.execute()
                 except Exception:
                     return
 
