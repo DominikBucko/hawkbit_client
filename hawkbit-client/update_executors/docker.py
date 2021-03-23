@@ -18,7 +18,7 @@ class Executor:
 
     def sudo_execute(self, command):
         process = subprocess.Popen(
-            command, cwd=self.deployment['target']['dir'], shell=True
+            command, cwd=self.deployment['package']['dir'], shell=True
         )
         result = process.wait()
         if result != 0:
@@ -34,11 +34,11 @@ class Executor:
             env = os.environ.copy()
             env['HOME'] = user_home_dir
             env['LOGNAME'] = user_name
-            env['PWD'] = self.deployment['target']['dir']
+            env['PWD'] = self.deployment['package']['dir']
             env['USER'] = user_name
             process = subprocess.Popen(
                 command, preexec_fn=demote(user_uid, user_gid, self.deployment["user"]),
-                cwd=self.deployment['target']['dir'], env=env, shell=True
+                cwd=self.deployment['package']['dir'], env=env, shell=True
             )
             result = process.wait()
             if result != 0:
@@ -53,16 +53,24 @@ class Executor:
         self.execute_command(["bash", script])
 
     def stop_service(self):
-        cmd = f"systemctl stop {self.deployment['target']['service']}.service"
+        cmd = f"systemctl stop {self.deployment['instance_name']}.service"
         self.sudo_execute(cmd)
 
+    def docker_run_cmd(self):
+        cmd = f"docker run {self.deployment['package']['image']['name']} " \
+              f"{' '.join(self.deployment['package']['image']['run_flags'])}"
+        self.sudo_execute(cmd)
+
+    def docker_stop_containers_of_image(self):
+        cmd = f"docker stop $(docker ps -q --filter ancestor={self.deployment['package']['image']['name']} )"
+        self.sudo_execute(cmd)
 
     def start_service(self):
-        cmd = f"systemctl start {self.deployment['target']['service']}.service"
+        cmd = f"systemctl start {self.deployment['instance_name']}.service"
         self.sudo_execute(cmd)
 
     def restart_service(self):
-        cmd = f"systemctl restart {self.deployment['target']['service']}.service"
+        cmd = f"systemctl restart {self.deployment['instance_name']}.service"
         self.sudo_execute(cmd)
 
     def persist_old_image(self):
@@ -82,24 +90,40 @@ class Executor:
         self.sudo_execute(cmd)
 
     def execute(self):
-        sh.cp(f"{self.dir}/{self.deployment['package']['image']['file']}", f"{self.deployment['target']['dir']}/")
+        sh.cp(f"{self.dir}/{self.deployment['package']['image']['file']}", f"{self.deployment['package']['dir']}/")
         if self.deployment['package'].get('before_script'):
             self.before()
+        if self.deployment["daemon"] == "systemd":
+            self.stop_service()
+        elif self.deployment["daemon"] == "docker":
+            self.docker_stop_containers_of_image()
 
-        self.stop_service()
-
-        try:
-            self.persist_old_image()
-        except UpdateExecutorException as e:
-            self.restart_service()
-            raise e
+        if self.deployment['package']['image'].get("persist_old"):
+            try:
+                self.persist_old_image()
+            except UpdateExecutorException as e:
+                if self.deployment["daemon"] == "systemd":
+                    self.restart_service()
+                elif self.deployment["daemon"] == "docker":
+                    self.docker_run_cmd()
+                raise e
 
         try:
             self.delete_image()
         except UpdateExecutorException as e:
             self.reload_old_image()
-            self.restart_service()
+            if self.deployment["daemon"] == "systemd":
+                self.restart_service()
+            elif self.deployment["daemon"] == "docker":
+                self.docker_run_cmd()
             raise e
 
         self.load_image()
-        self.start_service()
+
+        if self.deployment["daemon"] == "systemd":
+            self.restart_service()
+        elif self.deployment["daemon"] == "docker":
+            self.docker_run_cmd()
+
+        if self.deployment['package'].get('after_script'):
+            self.after()
