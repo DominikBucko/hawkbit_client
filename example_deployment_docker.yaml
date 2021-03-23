@@ -1,0 +1,12 @@
+platform: docker
+daemon: docker
+super_user: false
+user: nobody
+package:
+    image:
+        file: goodbot.tar.gz
+        name: goodbot:latest
+        persist_old: False
+        run_flags:
+          - "--restart=always"
+    dir: /home/buco/Documents/FIIT/BP

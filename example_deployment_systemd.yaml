@@ -1,0 +1,13 @@
+platform: docker
+daemon: systemd
+instance_name: test_service
+super_user: false
+user: nobody
+package:
+    image:
+        file: myimage.tar.gz
+        name: openpolicyagent/opa
+        persist_old: False
+    before_script: before.sh
+    after_script: after.sh
+    dir: /home/buco/Documents/FIIT/BP
