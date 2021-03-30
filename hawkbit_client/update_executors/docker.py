@@ -3,6 +3,8 @@ import sh
 import pwd
 import subprocess
 import logging
+from runlike.inspector import Inspector
+from runlike import runlike
 from ..exceptions import *
 
 
@@ -14,6 +16,7 @@ def demote(user_uid, user_gid, user_name):
 class Executor:
     def __init__(self, update_agent, deployment, dir):
         self.update_agent = update_agent
+        self.old_run_script = None
         self.deployment = deployment
         self.env = os.environ.copy()
         self.dir = dir
@@ -45,6 +48,17 @@ class Executor:
             result = process.wait()
             if result != 0:
                 raise UpdateExecutorException(f"Command {command} failed with status: {result}")
+
+    def get_previous_run_script(self):
+        cmd = f"docker ps -q --filter ancestor={self.deployment['package']['image']['name']} | head -n 1"
+        container_id = subprocess.check_output(cmd)
+
+        ins = Inspector(container=container_id, no_name=False, pretty=False)
+        ins.inspect()
+        return ins.format_cli()
+
+    def docker_run_old_cmd(self):
+        self.sudo_execute(self.old_run_script)
 
     def before(self):
         script = self.deployment["package"]["before_script"]
@@ -97,6 +111,11 @@ class Executor:
 
     def execute(self):
         sh.cp(f"{self.dir}/{self.deployment['package']['image']['file']}", f"{self.deployment['package']['dir']}/")
+        try:
+            self.old_run_script = self.get_previous_run_script()
+        except Exception:
+            logging.error("Could not retrieve run script of previous container.")
+
         if self.deployment['package'].get('before_script'):
             self.before()
         try:
@@ -114,18 +133,18 @@ class Executor:
                 if self.deployment["daemon"] == "systemd":
                     self.restart_service()
                 elif self.deployment["daemon"] == "docker":
-                    self.docker_run_cmd()
+                    self.docker_run_old_cmd()
                 logging.error("Couldnt persist old image.")
                 raise e
 
         try:
             self.delete_image()
         except UpdateExecutorException as e:
-            # self.reload_old_image()
-            # if self.deployment["daemon"] == "systemd":
-            #     self.restart_service()
-            # elif self.deployment["daemon"] == "docker":
-            #     self.docker_run_cmd()
+            self.reload_old_image()
+            if self.deployment["daemon"] == "systemd":
+                self.restart_service()
+            elif self.deployment["daemon"] == "docker":
+                self.docker_run_old_cmd()
             logging.error("Couldn't delete old image")
             # raise e
 
